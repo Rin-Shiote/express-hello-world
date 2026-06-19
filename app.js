@@ -1,14 +1,57 @@
-const express = require("express");
-const app = express();
-const port = process.env.PORT || 3001;
-
-app.get("/", (req, res) => res.type('html').send(html));
-
-const server = app.listen(port, () => console.log(`Example app listening on port ${port}!`));
-
-server.keepAliveTimeout = 120 * 1000;
-server.headersTimeout = 120 * 1000;
-
+const express = require('express')
+const app = express()
+const port = process.env.PORT || 3001
+app.get('/', (req, res) => res.type('html').send(html))
+app.get('/status', (req, res) => res.json({ status: 'ok' }))
+app.get('/dump', (req, res) => res.json({ headers: req.rawHeaders }))
+app.get('/password-score', (req, res) => {
+  const password = req.query.password
+  if (!password) {
+    return res
+      .status(400)
+      .json({ error: 'Password query parameter is required' })
+  }
+  const score = passScore(password)
+  res.status(200).send(`
+    <html><body>
+      <h1>Password Score</h1>
+      <p>Password: ${password}</p>
+      <p>Score: ${score}</p>
+      <p>Strength: ${scoreToMessage(score)}</p>
+    </body></html>
+`)
+})
+const passScore = (pass) => {
+  let score = 0
+  if (pass.length >= 8) score += 1
+  if (/[A-Z]/.test(pass)) score += 1
+  if (/[a-z]/.test(pass)) score += 1
+  if (/[0-9]/.test(pass)) score += 1
+  if (/[^A-Za-z0-9]/.test(pass)) score += 1 // Special characters
+  return score
+}
+const scoreToMessage = (score) => {
+  switch (score) {
+    case 0:
+    case 1:
+      return 'Very Weak'
+    case 2:
+      return 'Weak'
+    case 3:
+      return 'Moderate'
+    case 4:
+      return 'Strong'
+    case 5:
+      return 'Very Strong'
+  }
+  return 'error'
+}
+const server = app.listen(port, () => {
+  console.log(`Example app listening on port ${port}!`)
+  console.log(`http://localhost:${port}/`)
+})
+server.keepAliveTimeout = 120 * 1000
+server.headersTimeout = 120 * 1000
 const html = `
 <!DOCTYPE html>
 <html>
@@ -58,4 +101,3 @@ const html = `
     </section>
   </body>
 </html>
-`
