@@ -6,10 +6,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Chat App</title>
     <style>
+        .container {
+            display: flex;
+            gap: 20px;
+        }
+
         .chat {
             display: flex;
             flex-direction: column;
             height: 80vh;
+            width: 300px;
         }
 
         .messages {
@@ -37,35 +43,55 @@
             cursor: pointer;
         }
 
-        .toolbar {
-            margin: 10px 0;
+        /* ★ 色パレット */
+        .palette {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .color-btn {
+            width: 30px;
+            height: 30px;
+            border-radius: 4px;
+            cursor: pointer;
+            border: 2px solid #333;
         }
     </style>
 </head>
 
 <body>
-    <div class="chat">
-        <ul class="messages"></ul>
 
-        <!-- 色変更 UI -->
-        <div class="toolbar">
-            線の色: <input type="color" id="colorPicker" value="#000000">
+    <div class="container">
+
+        <div class="chat">
+            <ul class="messages"></ul>
+
+            <form class="form">
+                <input class="input" autocomplete="off" />
+                <button class="submit">Send</button>
+            </form>
         </div>
 
-        <form class="form">
-            <input class="input" autocomplete="off" />
-            <button class="submit">Send</button>
-        </form>
-    </div>
+        <!-- ★ キャンバス横の色パレット -->
+        <div class="palette">
+            <div class="color-btn" style="background:#000000" data-color="#000000"></div>
+            <div class="color-btn" style="background:#ff0000" data-color="#ff0000"></div>
+            <div class="color-btn" style="background:#00aa00" data-color="#00aa00"></div>
+            <div class="color-btn" style="background:#0000ff" data-color="#0000ff"></div>
+            <div class="color-btn" style="background:#ffaa00" data-color="#ffaa00"></div>
+            <div class="color-btn" style="background:#ff00ff" data-color="#ff00ff"></div>
+        </div>
 
-    <canvas id="canvas" width="600" height="600" style="border: solid 1px black"></canvas>
+        <canvas id="canvas" width="600" height="600" style="border: solid 1px black"></canvas>
+
+    </div>
 
     <script>
         function main() {
             const host = location.origin.replace(/^http/, 'ws')
             const ws = new WebSocket(host + '/ws')
 
-            // ★ ユーザー名設定（空なら名無し）
             let username = prompt("ユーザー名を入力してください（空欄なら名無し）")
             if (!username) username = "名無し"
 
@@ -75,11 +101,13 @@
             const ctx = canvas.getContext('2d')
 
             let drawing = false
-            let currentColor = document.getElementById("colorPicker").value
+            let currentColor = "#000000"
 
-            // 色変更イベント
-            document.getElementById("colorPicker").addEventListener("input", (e) => {
-                currentColor = e.target.value
+            // ★ パレットの色ボタンにイベント追加
+            document.querySelectorAll(".color-btn").forEach(btn => {
+                btn.addEventListener("click", () => {
+                    currentColor = btn.dataset.color
+                })
             })
 
             canvas.addEventListener('mousedown', (e) => {
@@ -128,14 +156,13 @@
             }
 
             function sendDrawingEvent(x, y, control) {
-                const message = JSON.stringify({
+                ws.send(JSON.stringify({
                     x,
                     y,
                     control,
                     color: currentColor,
                     type: 'paint'
-                })
-                ws.send(message)
+                }))
             }
 
             ws.onmessage = (event) => {
@@ -143,15 +170,10 @@
 
                 if (msg.type === 'paint') {
                     const { x, y, control, color } = msg
-                    if (control === 'mousedown') {
-                        mousedown(color)
-                    } else if (control === 'mouseup') {
-                        mouseup()
-                    } else if (control === 'mousemove') {
-                        mousemove(x, y, color)
-                    } else if (control === 'mouseout') {
-                        mouseout()
-                    }
+                    if (control === 'mousedown') mousedown(color)
+                    else if (control === 'mouseup') mouseup()
+                    else if (control === 'mousemove') mousemove(x, y, color)
+                    else if (control === 'mouseout') mouseout()
                 }
 
                 if (msg.type === 'chat') {
@@ -171,7 +193,6 @@
             }
 
             const form = document.querySelector('.form')
-
             form.onsubmit = function (e) {
                 e.preventDefault()
                 const input = document.querySelector('.input')
@@ -186,10 +207,6 @@
 
                 input.value = ''
                 input.focus()
-            }
-
-            ws.onerror = function (error) {
-                console.error('WebSocket Error: ', error)
             }
         }
 
