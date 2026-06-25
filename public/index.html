@@ -36,36 +36,59 @@
             background: #eee;
             cursor: pointer;
         }
+
+        .toolbar {
+            margin: 10px 0;
+        }
     </style>
 </head>
 
 <body>
     <div class="chat">
         <ul class="messages"></ul>
+
+        <!-- 色変更 UI -->
+        <div class="toolbar">
+            線の色: <input type="color" id="colorPicker" value="#000000">
+        </div>
+
         <form class="form">
             <input class="input" autocomplete="off" />
             <button class="submit">Send</button>
         </form>
     </div>
+
     <canvas id="canvas" width="600" height="600" style="border: solid 1px black"></canvas>
 
     <script>
         function main() {
             const host = location.origin.replace(/^http/, 'ws')
             const ws = new WebSocket(host + '/ws')
+
+            // ★ ユーザー名設定（空なら名無し）
+            let username = prompt("ユーザー名を入力してください（空欄なら名無し）")
+            if (!username) username = "名無し"
+
             const myId = self.crypto.randomUUID().substr(0, 8)
 
             const canvas = document.getElementById('canvas')
             const ctx = canvas.getContext('2d')
 
             let drawing = false
+            let currentColor = document.getElementById("colorPicker").value
+
+            // 色変更イベント
+            document.getElementById("colorPicker").addEventListener("input", (e) => {
+                currentColor = e.target.value
+            })
 
             canvas.addEventListener('mousedown', (e) => {
                 sendDrawingEvent(e.offsetX, e.offsetY, 'mousedown')
             })
-            function mousedown() {
+            function mousedown(color) {
                 drawing = true
                 ctx.beginPath()
+                ctx.strokeStyle = color
             }
 
             canvas.addEventListener('mousemove', (e) => {
@@ -73,8 +96,9 @@
                     sendDrawingEvent(e.offsetX, e.offsetY, 'mousemove')
                 }
             })
-            function mousemove(x, y) {
+            function mousemove(x, y, color) {
                 if (drawing) {
+                    ctx.strokeStyle = color
                     draw(x, y, true)
                 }
             }
@@ -104,33 +128,43 @@
             }
 
             function sendDrawingEvent(x, y, control) {
-                const message = JSON.stringify({ x, y, control, type: 'paint' })
+                const message = JSON.stringify({
+                    x,
+                    y,
+                    control,
+                    color: currentColor,
+                    type: 'paint'
+                })
                 ws.send(message)
             }
 
             ws.onmessage = (event) => {
                 const msg = JSON.parse(event.data)
+
                 if (msg.type === 'paint') {
-                    const { x, y, control } = msg
-                    console.log({ control })
+                    const { x, y, control, color } = msg
                     if (control === 'mousedown') {
-                        mousedown()
+                        mousedown(color)
                     } else if (control === 'mouseup') {
                         mouseup()
                     } else if (control === 'mousemove') {
-                        mousemove(x, y)
+                        mousemove(x, y, color)
                     } else if (control === 'mouseout') {
                         mouseout()
                     }
                 }
+
                 if (msg.type === 'chat') {
-                    const { id, text } = msg
+                    const { id, text, username: name } = msg
                     const messageList = document.querySelector('.messages')
                     const li = document.createElement('li')
+
+                    const displayName = name || "名無し"
+
                     if (id === myId) {
-                        li.textContent = `(${id})自分:` + text
+                        li.textContent = `(${displayName}) 自分: ` + text
                     } else {
-                        li.textContent = id + ': ' + text
+                        li.textContent = `${displayName}: ${text}`
                     }
                     messageList.appendChild(li)
                 }
@@ -142,7 +176,14 @@
                 e.preventDefault()
                 const input = document.querySelector('.input')
                 const text = input.value
-                ws.send(JSON.stringify({ id: myId, text, type: 'chat' }))
+
+                ws.send(JSON.stringify({
+                    id: myId,
+                    username,
+                    text,
+                    type: 'chat'
+                }))
+
                 input.value = ''
                 input.focus()
             }
